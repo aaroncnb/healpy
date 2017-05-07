@@ -1,112 +1,52 @@
+#
+#  This file is part of Healpy.
+#
+#  Healpy is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  Healpy is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with Healpy; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+#
+#  For more information about Healpy, see http://code.google.com/p/healpy
+#
+"""Does aperture photometry on a Healpix map with a circle of a given
+   radius, subtracting the background determined from an annulus.
+Units are assumed to be mK_RJ and are converted to Jy.
 
-# coding: utf-8
+ HISTORY
 
-#  Do aperture photometry on a Healpix map with a circle of a given
-#  radius, and subtracting the background in an annulus
-#  Units are assumed to be mK_RJ and are converted to Jy
-#
-#
-#  INPUTS
-#
-#  inmap               Healpix fits file or map array
-#                      If an array, it assumed to be 'RING' ordering
-#                      if ordering keyword not set
-#
-#  freq                Frequency (GHz) to allow conversion to Jy
-#
-#  res_arcmin          Angular resolution (arcmin FWHM) of the data
-#                      This is needed for the error estimation
-#                      and only needs to be approximate
-#                      ( for noise_model=1 only )
-#
-#
-#
-#  lon                 Longitude of aperture (deg)
-#
-#  lat                 Latitude of aperture (deg)
-#
-#  aper_inner_radius   Inner radius of aperture (arcmin)
-#
-#  aper_outer_radius1  1st Outer radius of aperture beteween aperture
-#                      and  b/g annulus (arcmin)
-#                      Make this the same as the inner radius for
-#                      single annulus with no gap
-#
-#  aper_outer_radius2  2nd Outer radius of aperture for b/g annulus (arcmin)
-#
-#  units               String defining units in the map
-#                      Options include ['K','K_RJ', 'K_CMB', 'MJy/sr','Jy/pixel']
-#                      m for milli and u for micro can also be used for
-#                      K e.g. 'mK_RJ' or 'mK'
-#                      Default is 'K_RJ'
-#
-#
-#  OPTIONAL:-
-#
-#  column              This can be set to any integer which represents
-#                      the column of the map (default is column=0)
-#
-#  dopol               If this keyword is set, then it will calculate the
-#                      polarized intensity from columns 1 and 2 (Q and
-#                      U) as PI=sqrt(Q^2+U^2) with *no noise bias* correction
-#                      N.B. This overrides the column option
-#
-#  nested              If set, then the ordering is NESTED
-#                      (default is to assume RING if not reading in a file)
-#
-#
-#  noise_model         Noise model for estimating the uncertainty
-#                      0 (DEFAULT) = approx uncertainty for typical/bg annulus aperture
-#                      sizes (only approximate!).
-#                      1 = assumes white uncorrelated noise (exact)
-#                      and will under-estimate in most cases with real backgrounds!
-#
-#  centroid	      reproject the source using gnomdrizz and uses the centroid of the source instead of input coordinates
-#                      0 (DEFAULT) = no centroiding is done
-#  		      1 = centroiding performed using IDL code cntrd
-#
-#  OUTPUTS
-#
-#  fd                  Integrated flux density in aperture after b/g
-#                      subtraction (Jy)
-#
-#  fd_err              Estimate of error on integrated flux density (Jy)
-#
-#
-#  fd_bg               Background flux density estimate (Jy)
-#
-#
-#
-#  HISTORY
-#
-# 26-Jun-2010  C. Dickinson   1st go
-#  25-Jul-2010  C. Dickinson   Added conversion option from T_CMB->T_RJ
-#  25-Jul-2010  C. Dickinson   Added 2nd outer radius
-#  26-Aug-2010  C. Dickinson   Added generic 'unit' option
-#  02-Sep-2010  C. Dickinson   Tidied up the code a little
-#  19-Oct-2010  C. Dickinson   Use ang2vec rather than long way around
-#                              via the pixel number
-#  20-Oct-2010  M. Peel        Fix MJy/Sr conversion; add aliases for
-# 							  formats
-# 							  excluding
-# 							  underscores
-#
-#  10-Feb-2011  C. Dickinson   Added column option to allow polarization
-#  16-Feb-2011  C. Dickinson   Added /dopol keyword for doing polarized intensity
-#  12-Mar-2011  C. Dickinson   Added flexibility of reading in file or array
-#  01-Jun-2011  C. Dickinson   Added noise_model option
-#  10-Nov-2011  M. Peel        Adding AVG unit option.
-#  20-Sep-2012  P. McGehee     Ingested into IPAC SVN, formatting changes
-#  11-Apr-2016  A. Bell        Translated to Python
-# ------------------------------------------------------------
-#
+26-Jun-2010  C. Dickinson   1st go
+ 25-Jul-2010  C. Dickinson   Added conversion option from T_CMB->T_RJ
+ 25-Jul-2010  C. Dickinson   Added 2nd outer radius
+ 26-Aug-2010  C. Dickinson   Added generic 'unit' option
+ 02-Sep-2010  C. Dickinson   Tidied up the code a little
+ 19-Oct-2010  C. Dickinson   Use ang2vec rather than long way around
+                             via the pixel number
+ 20-Oct-2010  M. Peel        Fix MJy/Sr conversion; add aliases for
+							  formats
+							  excluding
+							  underscores
 
-# In[ ]:
+ 10-Feb-2011  C. Dickinson   Added column option to allow polarization
+ 16-Feb-2011  C. Dickinson   Added /dopol keyword for doing polarized intensity
+ 12-Mar-2011  C. Dickinson   Added flexibility of reading in file or array
+ 01-Jun-2011  C. Dickinson   Added noise_model option
+ 10-Nov-2011  M. Peel        Adding AVG unit option.
+ 20-Sep-2012  P. McGehee     Ingested into IPAC SVN, formatting changes
+ 11-Apr-2016  A. Bell        Translated to Python
+------------------------------------------------------------
+"""
 
-import matplotlib
 import numpy as np
-import matplotlib.pyplot as plt
-import healpy as hp
+from . import *
 import healpy.projector as pro
 import astropy.io.fits as fits
 import sys
@@ -116,14 +56,6 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 
 
-
-
-#http://stackoverflow.com/questions/14275986/removing-common-elements-in-two-lists
-# Here is a function to remove the "common" pixels of the innter and outer rings of the background annulus
-# The point is that the background-ring pixels we want, are the ones that /not/ contained by both outer rings.
-# If we were calculating the rings's area, we'd subtract the innter ring area from the outer. It's essentially the same logic here
-# I found an example function on stackoverflow, by "user1632861 "
-# It's intended for lists, rather than numpy arrays, but I think it should work
 
 def removeCommonElements(outerpix1, outerpix2):
     for pix in outerpix2[:]:
@@ -208,7 +140,64 @@ def convertToJy(units, thisfreq, npix=None, pix_area = None):
 def haperflux(inmap, freq, lon, lat, res_arcmin, aper_inner_radius, aper_outer_radius1, aper_outer_radius2, \
               units, fd=0, fd_err=0, fd_bg=0, column=0, dopol=False, nested=False, noise_model=0, centroid=False, arcmin=True):
 
-    #check parameters
+    '''Perfurms the circular aperture source flux measurement, as well as background
+    subtraction measured by pixels in a specified annulus.
+
+    Parameters
+    ----------
+    inmap : float, array-like or str
+     Healpix fits file or map array. If an array, it assumed to be 'RING'
+     ordering if ordering keyword not set.
+    freq : float
+     Frequency (GHz) to allow conversion to Jy.
+    res_arcmin : float
+     Angular resolution (arcmin FWHM) of the data This is needed for
+     the error estimation and only needs to be approximate( for noise_model=1 only )
+    lon : float
+     Longitude of aperture (deg)
+    lat : float
+     Latitude of aperture (deg)
+    aper_inner_radius : float
+     Inner radius of aperture (arcmin)
+    aper_outer_radius1 : float
+     1st Outer radius of aperture beteween aperture and  b/g
+     annulus (arcmin). Make this the same as the inner radius for single annulus
+     with no gap.
+    aper_outer_radius2 : float
+     2nd Outer radius of aperture for b/g annulus (arcmin)
+    units : str
+     String defining units in the map. Options: ['K','K_RJ', 'K_CMB', 'MJy/sr','Jy/pixel'].
+     Default is 'K_RJ'. m for milli and u for micro can also be used for K e.g. 'mK_RJ' or 'mK'
+    column : int,  optional
+     This can be set to any integer which represents the column of the map
+     (default is column=0.)
+    #dopol : bool, optional [Feature from original IDL version. Not yet implemented.]
+    #  If this keyword is set, then it will calculate the
+    #  polarized intensity from columns 1 and 2 (Q and
+    #  U) as PI=sqrt(Q^2+U^2) with *no noise bias* correction
+    #  N.B. This overrides the column option
+    nested : bool
+     If True, then the ordering is NESTED. Default is to assume RING if not reading in a file)
+    noise_model : int
+     Noise model for estimating the uncertainty.
+     0 (DEFAULT) = approx uncertainty for typical/bg annulus aperture sizes (only approximate!).
+     1 = assumes white uncorrelated noise (exact) and will under-estimate in most cases with real backgrounds!
+    # centroid : [Not yet impleme]
+    #  reproject the source using gnomdrizz and uses the centroid of the source instead of input coordinates
+    #  0 (DEFAULT) = no centroiding is done
+    #  1 = centroiding performed using IDL code cntrd
+
+    Returns
+    -------
+     fd : array-like
+      Integrated flux density in aperture after background subtraction (Jy)
+     fd_err : array-like
+      Estimate of error on integrated flux density (Jy)
+     fd_bg : array-like
+       Background flux density estimate (Jy)
+    '''
+
+#check parameters
     if len(sys.argv) > 8:
         print ''
         print 'SYNTAX:-'
@@ -449,7 +438,7 @@ def haperflux(inmap, freq, lon, lat, res_arcmin, aper_inner_radius, aper_outer_r
 ### 'radius', 'rinner', and 'router' should be given in arcminutes
 
 def aperphot(inputlist, maplist, radius, rinner, router, galactic=True, decimal=True):
-    ##Here is the "observation data structure", which just means "a bunch of details 
+    ##Here is the "observation data structure", which just means "a bunch of details
     ## about the different all-sky data sources which could be used here.
     freqlist =     ['30','44','70','100','143','217','353','545','857','1874','2141','2998','3331','4612','4997','11992','16655','24983','33310']
     freqval =      [28.405889, 44.072241,70.421396,100.,143.,217.,353.,545.,857.,1874.,2141.,2998.,3331.,4612.,4997.,11992.,16655.,24983.,33310.]
@@ -457,14 +446,14 @@ def aperphot(inputlist, maplist, radius, rinner, router, galactic=True, decimal=
     band_names =   ["akari9", "iras12", "akari18","iras25","iras60","akari65","akari90","iras100","akari140","akari160","planck857", "planck545"]
     band_centers = [ 60e-6,    65e-6,    90e-6,   100e-6,   140e-6,    160e-6,    350e-6,      550e-6]
 
-    
 
-    k0 = 1.0 
-    k1 = rinner/radius 
-    k2 = router/radius 
+
+    k0 = 1.0
+    k1 = rinner/radius
+    k2 = router/radius
     apcor = ((1 - (0.5)**(4*k0**2))-((0.5)**(4*k1**2) - (0.5)**(4*k2**2)))**(-1)
-  
-    # 'galactic' overrules 'decimal' 
+
+    # 'galactic' overrules 'decimal'
     if (galactic==True):
         dt=[('sname',np.dtype('S13')),('glon',np.float32),('glat',np.float32)]
         targets = np.genfromtxt(inputlist, delimiter=",",dtype=dt)
@@ -474,7 +463,7 @@ def aperphot(inputlist, maplist, radius, rinner, router, galactic=True, decimal=
     fd3 = -1
     fd_err3 = -1
 
-    fn = np.genfromtxt(maplist, delimiter=" ", dtype='str') 
+    fn = np.genfromtxt(maplist, delimiter=" ", dtype='str')
     nmaps = len(fn)
     ## Initialize the arrays which will hold the results
     fd_all = np.zeros((ns,nmaps))
@@ -498,7 +487,7 @@ def aperphot(inputlist, maplist, radius, rinner, router, galactic=True, decimal=
     #    printf, 1, '; Map #',i, fn[i]
     #
     #printf, 1, ';'
-    
+
     # Start the actual processing: Read-in the maps.
     for ct2 in range(0,nmaps):
         xtmp_data, xtmp_head = hp.read_map(fn[ct2], memmap=True, h=True, verbose=False, nest=False)
@@ -507,15 +496,15 @@ def aperphot(inputlist, maplist, radius, rinner, router, galactic=True, decimal=
         freq_str = str(freq)
         idx = freqlist.index(str(freq))
         currfreq = int(freq)
-        
+
         if (radius == None):
             radval = fwhmlist[idx]
         else:
             radval = radius
-        
-        
-        for ct in range(0,ns): 
-            
+
+
+        for ct in range(0,ns):
+
 
             glon = targets['glon'][ct]
             glat = targets['glat'][ct]
@@ -524,9 +513,9 @@ def aperphot(inputlist, maplist, radius, rinner, router, galactic=True, decimal=
                 haperflux(inmap= xtmp_data, freq= currfreq, lon=glon, lat=glat, \
                         res_arcmin= radius, aper_inner_radius=radius, aper_outer_radius1=rinner, \
                         aper_outer_radius2=router,units=units)
-            
+
             #print "T: "+str(ct+1)+", nu: "+freq_str+", Flux Density (Jy) "+str(round(fd_all[ct,ct2]))+", Error (Jy) "+str(round(fd_err_all[ct,ct2]))+" Background (Jy) "+str(round(fd_bg_all[ct,ct2]))
-                 
+
 
             #print np.isfinite(fd_err_all[ct,ct2])
             if (np.isfinite(fd_err_all[ct,ct2]) == False):
@@ -536,7 +525,5 @@ def aperphot(inputlist, maplist, radius, rinner, router, galactic=True, decimal=
                 if radius==None:
                     fd_all[ct,ct2] = fd_all[ct,ct2]*apcor
                     fd_err_all[ct,ct2] = fd_err_all[ct,ct2]*apcor
-    print fd_all  
+    print fd_all
     return fd_all, fd_err_all, fd_bg_all
-
-
